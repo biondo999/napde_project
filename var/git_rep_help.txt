@@ -1,0 +1,43 @@
+->generate keys and set up a passpharese only for you
+ssh-keygen
+->here are stored the keys you go there
+~/.ssh
+->go to github
+cat id_rsa.pub
+->copy the key to github
+
+
+MODIFIED->STAGED->COMMITED (you can't jump from one to another)
+->git status stages of files 
+->git add nameoffile (from modified to staged) or git add.
+->git rm --cached namefile (go back from staged to modified)
+->git restore namefile(go back to when you have originally cloned the repo for the file)
+
+->git commit -m "My first commit from my pc" always addd a comment 
+
+->git remote -v 
+
+->get push origin master(to send your changes to the repo)
+
+git clone ssh link if you have done ssh comunication
+
+esc + :wq to exit makefile
+
+->git log (past commitmentssssssssswith code)
+
+->git checkout <code>
+
+
+->get checkout -b nameofnewbranch (if you commit you go forward with this newbranch)
+
+->if you want to delete first go with the head to a branch then
+git branch -D nameofbranch
+
+git log nameofbranch ->it shows you all the commits previous to the branch
+
+
+https://git-school.github.io/visualizing-git/
+
+animation to undertand what you are doing 
+
+->git push -all
