@@ -1,0 +1,15 @@
+slide1:
+PINNs use automatic differentation to selve PDE by intrucing a loss at rondom points of interest to learn an inout output map,
+the VIPPINs on the other hand introduce the weak formulation of our PDE for the loss calculation
+and we pick as test functions Legendre polynomials
+slide 2:
+discrete loss explanation
+slide 3:
+PRO/CONS of VPINNs,PRO of IVINNIns 
+slide 4:
+training describtion supervised/unsupervised learning 
+slide 5: goals
+->make training depend on tollereance of error 
+->make order of nodes for numericl integrarion depend on the regularity of the solution 
+->implement training for different domains 
+->
