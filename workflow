@@ -1,0 +1,21 @@
+#make 1d work well + achieve the results of the first paper
+#present the results in a nice way
+
+
+#jacobian problem
+
+
+#find a library thst implements meshes and quadrules -->firedrake probably
+
+#start implementing 2d
+
+# start working on ivinn
+
+#make progress 
+
+#meet with the professor
+
+
+
+
+
