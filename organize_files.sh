@@ -1,1 +1,1 @@
-mv *.ipynb notebooks
+mv *.ipynb result
