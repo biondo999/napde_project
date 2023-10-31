@@ -201,8 +201,7 @@ class Mesh:
         print('  refinement ratio = ',self.get_refinement_ratio())
         print('submesh info : ')
         print('  number of elements = ',self.meshed_elements[0]._get_number_elements())
-        print('  h_max = ',self.meshed_elements[0].max_H())
-        print('  h_min = ',self.meshed_elements[0].min_H())
+        print('  h_min = ',self.min_h())
         #print('  refinement ratio = ',self.meshed_elements[0].get_refinement_ratio())
 
 
