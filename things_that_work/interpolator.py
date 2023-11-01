@@ -1,5 +1,3 @@
-
-
 from sympy import Matrix, Rational
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +17,10 @@ import numpy as np
 
 print('interpolator_lib imported')
 class basis:
-    def __init__(self, r: int, nodal_values: list = None):
+    def __init__(self, r: int,verbose:bool):
+        """
+        input=degree,verbose (True or False to shoe the poly)
+        """
         self.r = r
         self.powers= self.generate_powers(r)
         self.powers_dx,self.powers_dy=self.generate_powers_der()
@@ -30,11 +31,11 @@ class basis:
 
 
         #matrices that rapresent the polynomials
-        self.M ,self.M_dx,self.M_dy= self.generate_matrices()
+        self.M ,self.M_dx,self.M_dy= self.generate_matrices(verbose)
 
 
 
-    def plot_nodes(self):
+    def plot_nodes(self) -> None:
         """
         plot the nodes used for the basis on the ref triangle
         """
@@ -84,24 +85,29 @@ class basis:
     
 
 
-    def print_polynomial(self, sol,pairs,i) -> None:
+    def print_polynomial(self, sol,pairs,index) -> None:
         """singol polynomial print"""
 
         s='basis function number : '
-        print("\033[1m" + s + "\033[0m",i+1)
+        print("\033[1m" + s + "\033[0m",index+1)
         print()
 
         for ii,(i,j) in enumerate(pairs):
-            print(sol[ii],'x^',i,'y^',j,end=' ')
+            s1="\033[1m" + "x^"+str(i) + "\033[0m"
+            s2="\033[1m" + "y^"+str(j) + "\033[0m"
+            print('\033[91m'+'\033[4m'+str(sol[ii])+'\033[0m'+'\033[0m',s1,s2,end=' ')
         print()
         print()
         
 
 
 
-    def generate_coefficients(self, evaluation_matrix, verbose: bool = False):
+    def generate_coefficients(self, evaluation_matrix, verbose: bool):
         coeff = []
 
+
+        if verbose :
+            print('basis:')
         for i in range(self.n):
             b = [Rational(0) for j in range(self.n)]
             b[i] = Rational(1)
@@ -117,7 +123,7 @@ class basis:
 
 
     #change this last two
-    def generate_matrices(self):
+    def generate_matrices(self,verbose:bool):
 
         list=[]
         for ii in range(self.n):
@@ -130,18 +136,20 @@ class basis:
         A = Matrix(list)
 
 
-        coeffs = self.generate_coefficients(A,False)
+        coeffs = self.generate_coefficients(A,verbose)
 
         
-        coeffs_dx,coeffs_dy=self.generate_M_der(coeffs,False)
+        coeffs_dx,coeffs_dy=self.generate_M_der(coeffs,verbose)
 
         return np.reshape(np.array(coeffs, dtype=np.float64), (self.n, self.n)),np.reshape(np.array(coeffs_dx, dtype=np.float64), (self.n, len(self.powers_dx))),np.reshape(np.array(coeffs_dy, dtype=np.float64), (self.n, len(self.powers_dy)))
     
     
     
-    def generate_M_der(self, M: Matrix,verbose):
+    def generate_M_der(self, M: Matrix,verbose:bool):
         coeff_dx=[]
         coeff_dy=[]
+        if verbose:
+            print('basis :')
         for ii in range(self.n):
             temp_x=[]
             temp_y=[]
