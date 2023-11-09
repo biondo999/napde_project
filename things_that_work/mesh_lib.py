@@ -165,6 +165,7 @@ class Mesh:
 
     @staticmethod
     def translate(nodes: list, vertices: list):
+        #todo maybe change vertices from list to np.array of type np.float64
         """
         Translates given nodes in the reference
         case ([0, 0], [1, 0], [0, 1]) to an arbritrary triangle
@@ -172,6 +173,9 @@ class Mesh:
 
         # print(nodes)
         # print(vertices)
+        #convert this so everything works with numpy arrays
+
+
 
         output = np.zeros(shape=np.shape(nodes))
 
@@ -192,6 +196,59 @@ class Mesh:
         ) * (vertices[1, 1] - vertices[0, 1])
 
         return output, det
+    
+    def get_refinement_ratio(self):
+        return self.min_h() / self.max_H()
+
+    @staticmethod
+    def translate_der(vertices: list,dx:np.array,dy:np.array):
+        """
+        vertices:list of vertices where you want to tralste into 
+        dx:eval of the der wrt x of the basis on certian points 
+        dy:eval of the der wrt x of the basis on certian points 
+
+        traslate eval of ref basis of triangle into a proper eval of the basis of traslated triangle   
+
+        -->traslated dx,traslated dy,jac 
+        """
+
+        outputx = np.zeros(shape=(np.shape(dx)),dtype=np.float64)
+        outputy = np.zeros(shape=(np.shape(dy)),dtype=np.float64)
+
+        # a= (vertices[1, 0] - vertices[0, 0])
+        # b= (vertices[2, 0] - vertices[0, 0])
+        # c= (vertices[1, 1] - vertices[0, 1])
+        # d= (vertices[2, 1] - vertices[0, 1])
+
+        #   B=[[a,b],
+        #      [c,d]]
+        #    
+        #   B^-T=[[d,-c],
+        #      [-b,a]]
+        #
+
+
+
+        det = (vertices[1, 0] - vertices[0, 0]) * (vertices[2, 1] - vertices[0, 1]) - (
+            vertices[2, 0] - vertices[0, 0]
+        ) * (vertices[1, 1] - vertices[0, 1])        
+
+
+
+        outputx = (
+            dx * (vertices[2, 1] - vertices[0, 1])
+            - dy * (vertices[1, 1] - vertices[0, 1])
+        )/det
+
+        outputy = (
+            -dx * (vertices[2, 0] - vertices[0, 0])
+            + dy * (vertices[1, 0] - vertices[0, 0])
+        )/det
+
+
+
+        return outputx,outputy,det        
+
 
     def print_info(self):
         print('mesh info : ')
