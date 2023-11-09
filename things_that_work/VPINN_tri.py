@@ -104,18 +104,7 @@ class VPINN(tf.keras.Model):
         return self.NN(tf.concat([x, y], 1))
 
     def boundary_loss(self):
-    #remove add other boundary imposition 
 
-    ## NOTE:impose boundary or same structure for ICs
-        boundary_x = self.boundary_points[:,0].flatten()
-        boundary_y = self.boundary_points[:,1].flatten()
-
-        prediction = self.eval_NN(np.reshape(boundary_x, (len(boundary_x), 1)), np.reshape(boundary_y, (len(boundary_y), 1)))[0]
-
-        u_bound_NN = prediction
-        u_bound_exact = self.pb.u_exact(boundary_x, boundary_y)
-
-        return tf.reduce_mean(tf.square(u_bound_NN - u_bound_exact))
 
     def loss_big_triangle(self):
 
@@ -234,7 +223,11 @@ class VPINN(tf.keras.Model):
         self.xy_quad, self.w_quad = self.mesh.GLQ()
         self.x_quad = np.reshape(self.xy_quad[:,0], (len(self.xy_quad), 1))
         self.y_quad = np.reshape(self.xy_quad[:,1], (len(self.xy_quad), 1))
+
+
+        self.points=np.array([self.x_quad,self.y_quad],dtype=np.float64)
         self.w_quad = np.reshape(self.w_quad, (len(self.w_quad), 1))
+
 
     def pre_compute(self):
 
@@ -248,9 +241,9 @@ class VPINN(tf.keras.Model):
 
     def evaluate_test_functions(self):
         #change that by using interpolator class
-        self.v_evaluations = {}
-        self.v_evaluations["vx_quad"] = self.pb.v(self.x_quad, self.y_quad, self.n_test)
-        self.n_test = np.shape(self.v_evaluations["vx_quad"])[0]
+        #self.v_evaluations = {}
+        #self.v_evaluations["vx_quad"] = self.pb.v(self.x_quad, self.y_quad, self.n_test)
+        #self.n_test = np.shape(self.v_evaluations["vx_quad"])[0]
         # print(self.n_test)
         # self.v_evaluations["dv_x_quad"], self.v_evaluations["d2v_x_quad"] = self.pb.dtest_func(self.n_test, self.x_quad)
         # self.v_evaluations["vy_quad"] = self.pb.v_y(self.n_test, self.y_quad)
@@ -258,36 +251,92 @@ class VPINN(tf.keras.Model):
         # print(np.max(self.v_evaluations["v_x_quad"]), np.min(self.v_evaluations["v_x_quad"]), np.sum(self.v_evaluations["v_x_quad"]))
         # print(np.max(self.v_evaluations["v_y_quad"]), np.min(self.v_evaluations["v_y_quad"]), np.sum(self.v_evaluations["v_y_quad"]))
 
+        self.b=interpolator(self.n_test,False,True,points=self.points)
+
+        self.B=interpolator(self.n_inter,False,False,points=None)
+
+        self.construct_RHS()
+
+
+
+
+
+
+
+
     def construct_RHS(self):
         #modify also this 
 
 
-        vx_quad = self.v_evaluations["vx_quad"]
+        # vx_quad = self.v_evaluations["vx_quad"]
         # vy_quad = self.v_evaluations["vy_quad"]
 
         F_total = []
         xy_quad_total = []
         J_total = []
-        for element in range(self.mesh.N):
 
-            # get quadrature points in arb. element and get jacobian
-            xy_quad_element, J = self.mesh.translate(self.xy_quad, self.mesh._get_element_points(element))
+        for big_element in range(self.mesh.N):
+            F_element=[]
+            x_element=[]
 
-            # evaluate f on arb. quad points
-            f_quad_element = self.pb.f_exact(xy_quad_element[:, 0], xy_quad_element[:, 1])
+            for element in range(self.mesh.meshed_elements[big_element].N):
+    
 
-            # do the integral and appnd to total list
-            F_element = [J*np.sum(
-                self.w_quad*vx_quad[r]*f_quad_element)
-                for r in range(self.n_test)]
+                # get quadrature points in arb. element and get jacobian
+                xy_quad_element, J = self.mesh.translate(self.xy_quad, self.mesh.meshed_elements[big_element]._get_element_points(element))
+                x_element.append(xy_quad_element)
 
-            F_total.append(F_element)
-            xy_quad_total.append(xy_quad_element)
-            J_total.append(J)
+                # evaluate f on arb. quad points
+                f_quad_element = self.pb.f_exact(xy_quad_element[:, 0], xy_quad_element[:, 1])
 
-        self.F_total = tf.reshape(F_total, [self.mesh.N, self.n_test])
-        self.J_total = J_total
-        self.xy_quad_total = xy_quad_total
+                # do the integral and appnd to total list
+                F_element.append([J*np.sum(self.w_quad*self.b.B[:,r]*f_quad_element) for r in range(self.b.n)])
+
+            F_big_element=np.array(F_element,dtype=np.float64)
+
+
+            xy_quad_total.append(x_element)
+            F_total.append(F_big_element)
+            #xy_quad_total.append(xy_quad_element)
+            #J_total.append(J)
+
+
+        self.F_total = F_total
+        self.xy_quad_total = np.array(xy_quad_total,dtype=np.float64)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -37,7 +37,7 @@ class interpolator:
         #matrices that rapresent the polynomials
         self.M ,self.M_dx,self.M_dy= self.generate_matrices(verbose)
 
-        self.pre()
+        self.pre=pre
 
         #to check if you want or not pre_eval and if you have provided the correct arg in the init 
         if(pre==False):
@@ -208,17 +208,20 @@ class interpolator:
                 x[:,ii]=(points[:,0]**i)*(points[:,1]**j)
             
 
-            res=x @ M.T @val
+            return x @ M.T @val
+
+        
         else:
             if util==0:
                 res=self.x_pre @ M.T @val
+                return res
             if util==1:
                 res=self.dx_pre @ M.T @val
+                return res
             if util==1:
                 res=self.dy_pre @ M.T @val
+                return res
 
-
-        return res
     
 
 
@@ -251,3 +254,7 @@ class interpolator:
 
         for ii,(i,j) in enumerate(self.powers_dy):
             self.dy_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
+
+        self.B=self.x_pre*self.M
+        self.Bx=self.dx_pre*self.M_dx
+        self.By=self.dy_pre*self.M_dy
