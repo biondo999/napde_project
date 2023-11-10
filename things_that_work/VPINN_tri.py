@@ -77,25 +77,29 @@ class VPINN(tf.keras.Model):
         self.set_NN(NN, LR)
 
     def eval_NN(self, x, y):
+
+
+        #input numpy or tensorflow of size (n_points,2)
+        
         x = tf.convert_to_tensor(x, dtype=tf.float64)
         y = tf.convert_to_tensor(y, dtype=tf.float64)        
 
-        with tf.GradientTape(persistent=True) as second_order:
-            second_order.watch(x)
-            second_order.watch(y)
-            with tf.GradientTape(persistent=True) as first_order:
-                first_order.watch(x)
-                first_order.watch(y)
-                u = self.NN(tf.concat([x, y], 1))
-            d1xu = first_order.gradient(u, x)
-            d1yu = first_order.gradient(u, y)
-        d2xu = second_order.gradient(d1xu, x)
-        d2yu = second_order.gradient(d1yu, y)
+        u = self.NN(tf.concat([x, y], 1))
 
-        del first_order
-        del second_order
 
-        return u, [d1xu, d1yu], [d2xu, d2yu]
+        d1xu=self.B.interpolate_dx(u)
+        d1yu=self.B.interpolate_dy(u)
+
+
+        u_inter=self.B.interpolate(u)
+
+
+        # also define second der
+        d2xu=[]
+        d2yu=[]
+
+
+        return u_inter, [d1xu, d1yu], [d2xu, d2yu]
     
 
     def u_NN(self, x):
@@ -104,9 +108,11 @@ class VPINN(tf.keras.Model):
         return self.NN(tf.concat([x, y], 1))
 
     def boundary_loss(self):
+        #impose boundary loss
 
 
-    def loss_big_triangle(self):
+        return 0
+    def loss_big_triangle(self,index):
 
         v_x = self.v_evaluations["vx_quad"]
         # v_y = self.v_evaluations["vy_quad"]
@@ -115,7 +121,7 @@ class VPINN(tf.keras.Model):
         # dv_y_quad_el, d2v_y_quad_el = self.v_evaluations["dv_y_quad"], self.v_evaluations["d2v_y_quad"]
 
         varloss_total = 0
-        for element in range(self.mesh.N):
+        for element in range(self.mesh.meshed_elements[index].N):
 
             F_element = self.F_total[element]
             xy_quad_element = self.xy_quad_total[element]
@@ -165,12 +171,17 @@ class VPINN(tf.keras.Model):
         return varloss_total
 
     @tf.function
-    def variational_loss(self,index):
+    def loss_total(self):
         #consider only var  formulation 
         #loss_0 = 0
         #loss_b = self.boundary_loss()
-        loss_v = self.variational_loss()
-        return tf.cast(loss_0, dtype=tf.float64) + tf.cast(loss_b, dtype=tf.float64) + tf.cast(loss_v, dtype=tf.float64)
+
+        loss=0.0
+
+        for big_element in range(self.mesh.N):
+                loss+=self.loss_big_triangle(big_element)
+
+        return loss
 
     @tf.function
     def loss_gradient(self):
@@ -233,8 +244,6 @@ class VPINN(tf.keras.Model):
 
         self.generate_quadrature_points()
 
-
-
         self.evaluate_test_and_inter_functions()
 
         self.F_ext_total = self.construct_RHS()
@@ -256,12 +265,6 @@ class VPINN(tf.keras.Model):
         self.B=interpolator(self.n_inter,False,False,points=None)
 
         self.construct_RHS()
-
-
-
-
-
-
 
 
     def construct_RHS(self):
@@ -290,7 +293,7 @@ class VPINN(tf.keras.Model):
                 f_quad_element = self.pb.f_exact(xy_quad_element[:, 0], xy_quad_element[:, 1])
 
                 # do the integral and appnd to total list
-                F_element.append([J*np.sum(self.w_quad*self.b.B[:,r]*f_quad_element) for r in range(self.b.n)])
+                F_element.append([J*np.sum(self.w_quad*self.b.Base[:,r]*f_quad_element) for r in range(self.b.n)])
 
             F_big_element=np.array(F_element,dtype=np.float64)
 

@@ -18,6 +18,13 @@ import sys
 
 print('interpolator_lib imported')
 
+
+
+# TODO introduce also second derivative 
+# clear structure so you can have up to order 2 
+#
+#
+
 class interpolator:
     def __init__(self, r: int,verbose:bool,pre:bool,points):
         """
@@ -27,7 +34,22 @@ class interpolator:
 
         #to perform loops easily 
         self.powers= self.generate_powers(r)
-        self.powers_dx,self.powers_dy=self.generate_powers_der()
+        self.powers_dx,self.powers_dy=self.generate_powers_der(1)
+        self.powers_d2x,self.powers_d2y=self.generate_powers_der(2)
+
+        print(self.powers)
+
+        print()
+        print(self.powers_dx)
+        print(self.powers_dy)
+
+        print()
+        print(self.powers_d2x)
+        print(self.powers_d2y)
+
+
+        #generate second powers
+
         self.nodes,self.Nodes,self.n = self.generate_interp_nodes(r)
         
         if bool:
@@ -35,7 +57,7 @@ class interpolator:
 
 
         #matrices that rapresent the polynomials
-        self.M ,self.M_dx,self.M_dy= self.generate_matrices(verbose)
+        self.M ,self.M_dx,self.M_dy,self.M_d2x,self.M_d2y= self.generate_matrices(verbose)
 
         self.pre=pre
 
@@ -43,9 +65,8 @@ class interpolator:
         if(pre==False):
             pass
         else:
-            if(points==None):
-                    print('you didnt provide points(np.array) for the pre_eval!')
-                    sys(1)
+            if(points is None):
+                    raise ValueError("'you didnt provide points(np.array) for the pre_eval!. The script will terminate.")
             else:
                 self.eval_powers_a_priori(points)
             
@@ -73,7 +94,7 @@ class interpolator:
         """
         return [(j, i) for i in range(0, r + 1) for j in range(0, r + 1) if i + j <= r]
     
-    def generate_powers_der(self):
+    def generate_powers_der(self,I:int):
         """
         generate  the correct powers for the derivatives and store it 
         """
@@ -81,10 +102,10 @@ class interpolator:
         der_y=[]
 
         for (i,j) in self.powers:
-            if (i-1)>=0:
-                der_x.append(((i-1),j))
-            if (j-1)>=0:
-                der_y.append((i,(j-1)))
+            if (i-I)>=0:
+                der_x.append(((i-I),j))
+            if (j-I)>=0:
+                der_y.append((i,(j-I)))
 
         return der_x,der_y
 
@@ -103,7 +124,7 @@ class interpolator:
     
 
 
-    def print_polynomial(self, sol,pairs,index) -> None:
+    def print_polynomial(self,sol,pairs,index) -> None:
         """singol polynomial print"""
 
         s='basis function number : '
@@ -155,15 +176,22 @@ class interpolator:
 
 
         coeffs = self.generate_coefficients(A,verbose)
+        coeffs_dx,coeffs_dy=self.generate_M_der(coeffs,verbose,1)
+        coeffs_d2x,coeffs_d2y=self.generate_M_der(coeffs,verbose,2)
 
-        
-        coeffs_dx,coeffs_dy=self.generate_M_der(coeffs,verbose)
+        coeffs=np.reshape(np.array(coeffs, dtype=np.float64), (self.n, self.n))
 
-        return np.reshape(np.array(coeffs, dtype=np.float64), (self.n, self.n)),np.reshape(np.array(coeffs_dx, dtype=np.float64), (self.n, len(self.powers_dx))),np.reshape(np.array(coeffs_dy, dtype=np.float64), (self.n, len(self.powers_dy)))
+        coeffs_dx=np.reshape(np.array(coeffs_dx, dtype=np.float64),(self.n, len(self.powers_dy)))
+        coeffs_dy=np.reshape(np.array(coeffs_dy, dtype=np.float64), (self.n, len(self.powers_dy)))
+
+        coeffs_d2x=np.reshape(np.array(coeffs_d2x, dtype=np.float64),(self.n, len(self.powers_d2x)))
+        coeffs_d2y=np.reshape(np.array(coeffs_d2y, dtype=np.float64), (self.n, len(self.powers_d2y)))        
+
+        return coeffs,coeffs_dx,coeffs_dy,coeffs_d2x,coeffs_d2y
     
     
     
-    def generate_M_der(self, M: Matrix,verbose:bool):
+    def generate_M_der(self, M: Matrix,verbose:bool,I:int):
         coeff_dx=[]
         coeff_dy=[]
         if verbose:
@@ -172,26 +200,41 @@ class interpolator:
             temp_x=[]
             temp_y=[]
             for jj,(i,j) in enumerate(self.powers):
-                if (i-1)>=0:
-                    temp_x.append(Rational(i,1)*M[ii][jj])
-                if (j-1)>=0:
-                    temp_y.append(Rational(j,1)*M[ii][jj])
+                if (i-I)>=0:
+                    if(I==1):
+                        temp_x.append(Rational(i,1)*M[ii][jj])
+                    else:
+                        temp_x.append(Rational(i,1)*Rational(i-1,1)*M[ii][jj])
+                if (j-I)>=0:
+                    if(I==1):
+                        temp_y.append(Rational(j,1)*M[ii][jj])
+                    else:
+                        temp_y.append(Rational(j,1)*Rational(j-1,1)*M[ii][jj])
+
             if verbose:
-                print("dx")
-                self.print_polynomial(temp_x,self.powers_dx,ii)
-                print("dy")
-                self.print_polynomial(temp_y,self.powers_dy,ii)
+                if(I==1):
+                    print("d"+str(I)+"x")
+                    self.print_polynomial(temp_x,self.powers_dx,ii)
+                    print("d"+str(I)+"y")
+                    self.print_polynomial(temp_y,self.powers_dy,ii)
+                else:
+                    print("d"+str(I)+"x")
+                    self.print_polynomial(temp_x,self.powers_d2x,ii)
+                    print("d"+str(I)+"y")
+                    self.print_polynomial(temp_y,self.powers_d2y,ii)
                 print()
+                
 
             coeff_dx.append(temp_x)
             coeff_dy.append(temp_y)
+
         return coeff_dx,coeff_dy
     
 
 
 
 
-    def eval(self,M,points,val,pairs,util:int):
+    def eval(self,M,points,val,pairs):
         """
         generic function that interpolates a set of 2d nodes that are fixed in generic points inside the ref triangle,
         -M is the matrix with coeff of all the basis function in each row 
@@ -201,60 +244,108 @@ class interpolator:
         the output will be an col vecotr of size (n_points,1)
           
         """
-        if (self.pre==False):
-            x=np.ones((np.shape(points)[0],len(pairs)),dtype=np.float64)
+ 
+        x=np.ones((np.shape(points)[0],len(pairs)),dtype=np.float64)
 
-            for ii,(i,j) in enumerate(pairs):
-                x[:,ii]=(points[:,0]**i)*(points[:,1]**j)
-            
+        for ii,(i,j) in enumerate(pairs):
+            x[:,ii]=(points[:,0]**i)*(points[:,1]**j)
+        
 
-            return x @ M.T @val
+        return x @ M.T @val
+
+
+
+    def eval_pre(self,B,val):
+        return B @ val
 
         
-        else:
-            if util==0:
-                res=self.x_pre @ M.T @val
-                return res
-            if util==1:
-                res=self.dx_pre @ M.T @val
-                return res
-            if util==1:
-                res=self.dy_pre @ M.T @val
-                return res
-
-    
 
 
-        
+
+
+    #use this method if you want the eval of points that you don't know a priori 
     def interpolate(self,points,val):
         """ points where you want to intepolate,val are the values at the fixed nodes 
             if you set pre=True pass and empty second arguments as points """
  
-        return self.eval(self.M,points,val,self.powers,0)
+        return self.eval(self.M,points,val,self.powers)
     
     def interpolate_dx(self,points,val):
-        return self.eval(self.M_dx,points,val,self.powers_dx,1)
+        return self.eval(self.M_dx,points,val,self.powers_dx)
     
     def interpolate_dy(self,points,val):
-        return self.eval(self.M_dy,points,val,self.powers_dy,2)
+        return self.eval(self.M_dy,points,val,self.powers_dy)
+    
+    def interpolate_d2x(self,points,val):
+        return self.eval(self.M_d2x,points,val,self.powers_d2x)
+    
+    def interpolate_d2y(self,points,val):
+        return self.eval(self.M_d2y,points,val,self.powers_d2y)
     
 
 
+
+
+
+
+    #use this methods if you know a priori the points of the eval 
+    def interpolate_pre(self,val):
+        """ points where you want to intepolate,val are the values at the fixed nodes 
+            if you set pre=True pass and empty second arguments as points """
+ 
+        return self.eval_pre(self.Base,val)
+    
+    def interpolate_pre_dx(self,val):
+        return self.eval(self.Base_dx,val)
+    
+    def interpolate_pre_dy(self,val):
+        return self.eval(self.Base_dy,val)
+
+    def interpolate_pre_d2x(self,val):
+        return self.eval(self.Base_d2x,val)
+    
+    def interpolate_pre_d2y(self,val):
+        return self.eval(self.Base_d2y,val)
+    
+
+    #just computed one 
     def eval_powers_a_priori(self,points)->None:
 
         self.x_pre=np.ones((np.shape(points)[0],len(self.powers)),dtype=np.float64)
+
         self.dx_pre=np.ones((np.shape(points)[0],len(self.powers_dx)),dtype=np.float64)
         self.dy_pre=np.ones((np.shape(points)[0],len(self.powers_dy)),dtype=np.float64)
+
+        self.d2x_pre=np.ones((np.shape(points)[0],len(self.powers_d2x)),dtype=np.float64)
+        self.d2y_pre=np.ones((np.shape(points)[0],len(self.powers_d2y)),dtype=np.float64)
         
+        print(np.shape(points)[0])
+
+
         for ii,(i,j) in enumerate(self.powers):
             self.x_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)    
     
+
         for ii,(i,j) in enumerate(self.powers_dx):
             self.dx_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
 
         for ii,(i,j) in enumerate(self.powers_dy):
             self.dy_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
 
-        self.B=self.x_pre*self.M
-        self.Bx=self.dx_pre*self.M_dx
-        self.By=self.dy_pre*self.M_dy
+
+        for ii,(i,j) in enumerate(self.powers_d2x):
+            self.d2x_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
+
+        for ii,(i,j) in enumerate(self.powers_d2y):
+            self.d2y_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
+
+        self.Base=self.x_pre@self.M.T
+
+     
+
+        self.Base_dx=self.dx_pre@self.M_dx.T
+        self.Base_dy=self.dy_pre@self.M_dy.T
+
+        self.Base_d2x=self.d2x_pre@self.M_d2x.T
+        self.Base_d2y=self.d2y_pre@self.M_d2y.T        
+
