@@ -254,7 +254,7 @@ class interpolator:
         return x @ M.T @val
 
 
-
+    
     def eval_pre(self,B,val):
         return B @ val
 
@@ -296,17 +296,21 @@ class interpolator:
         return self.eval_pre(self.Base,val)
     
     def interpolate_pre_dx(self,val):
-        return self.eval(self.Base_dx,val)
+        return self.eval_pre(self.Base_dx,val)
     
     def interpolate_pre_dy(self,val):
-        return self.eval(self.Base_dy,val)
+        return self.eval_pre(self.Base_dy,val)
 
     def interpolate_pre_d2x(self,val):
-        return self.eval(self.Base_d2x,val)
+        return self.eval_pre(self.Base_d2x,val)
     
     def interpolate_pre_d2y(self,val):
-        return self.eval(self.Base_d2y,val)
+        return self.eval_pre(self.Base_d2y,val)
     
+
+
+
+
 
     #just computed one 
     def eval_powers_a_priori(self,points)->None:
@@ -319,7 +323,6 @@ class interpolator:
         self.d2x_pre=np.ones((np.shape(points)[0],len(self.powers_d2x)),dtype=np.float64)
         self.d2y_pre=np.ones((np.shape(points)[0],len(self.powers_d2y)),dtype=np.float64)
         
-        print(np.shape(points)[0])
 
 
         for ii,(i,j) in enumerate(self.powers):
@@ -339,6 +342,8 @@ class interpolator:
         for ii,(i,j) in enumerate(self.powers_d2y):
             self.d2y_pre[:,ii]=(points[:,0]**i)*(points[:,1]**j)  
 
+
+
         self.Base=self.x_pre@self.M.T
 
      
@@ -349,3 +354,47 @@ class interpolator:
         self.Base_d2x=self.d2x_pre@self.M_d2x.T
         self.Base_d2y=self.d2y_pre@self.M_d2y.T        
 
+
+
+
+
+    def change_of_coordinates(self,vertices:list):
+        """input: vertices where you want to traslate your points
+            output:matrices that allow you to do the trasformation
+            to perform the trasformation you need a numpy vector of size (2,npoints)
+             --> x=B @ col vec of a point  +c you will get a col vec as output,
+             the same goes for B_D, B_DD """
+        B=np.zeros((2,2),dtype=np.float64)
+        c=np.zeros((2,1),dtype=np.float64)
+
+
+
+        B_D=np.zeros((2,2),dtype=np.float64)
+        B_DD=np.zeros((2,2),dtype=np.float64)
+
+        B[0][0]=(vertices[1, 0] - vertices[0, 0])
+        B[0][1]=(vertices[2, 0] - vertices[0, 0])
+        B[1][0]=(vertices[1, 1] - vertices[0, 1])
+        B[1][1]=(vertices[2, 1] - vertices[0, 1])
+        c[0]=vertices[0, 0]
+        c[1]=vertices[0, 1]
+
+        det = (vertices[1, 0] - vertices[0, 0]) * (vertices[2, 1] - vertices[0, 1]) - (
+            vertices[2, 0] - vertices[0, 0]
+        ) * (vertices[1, 1] - vertices[0, 1])
+
+
+        #B^-T
+
+        B_D[0][0]=(vertices[2, 1] - vertices[0, 1])
+        B_D[0][1]=-(vertices[1, 1] - vertices[0, 1])
+        B_D[1][0]=-(vertices[2, 0] - vertices[0, 0])
+        B_D[1][1]=(vertices[1, 0] - vertices[0, 0])
+       
+        B_D=B_D/det
+
+        #for the second derivative 
+        B_DD=np.square(B_D)
+
+
+        return B,c,det,B_D,B_DD

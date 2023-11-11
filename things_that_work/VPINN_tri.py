@@ -25,11 +25,10 @@ class VPINN(tf.keras.Model):
         self.n_inter=params['n_inter']
 
         self.mesh = mesh
-
         self.n_el= self.params['n_elements']
 
         # generate all points/coordinates to be used in the process
-        self.generate_boundary_points()
+        #self.generate_boundary_points()
         # self.generate_inner_points()
         self.pre_compute()
 
@@ -37,7 +36,7 @@ class VPINN(tf.keras.Model):
         if NN:
             self.set_NN(NN)
 
-
+    
         
 
 
@@ -109,44 +108,78 @@ class VPINN(tf.keras.Model):
 
     def boundary_loss(self):
         #impose boundary loss
-
-
         return 0
+    
+
+
+
+    
     def loss_big_triangle(self,index):
 
-        v_x = self.v_evaluations["vx_quad"]
         # v_y = self.v_evaluations["vy_quad"]
         # dv_x_quad_el, d2v_x_quad_el = self.v_evaluations["dv_x_quad"], self.v_evaluations["d2v_x_quad"]
         # v_y_quad_el = self.v_evaluations["v_y_quad"]
         # dv_y_quad_el, d2v_y_quad_el = self.v_evaluations["dv_y_quad"], self.v_evaluations["d2v_y_quad"]
 
-        varloss_total = 0
+
+        nodes, J_inter = self.mesh.translate(self.B.Nodes,self.mesh._get_element_points(index))
+
+
+
+        eval=self.NN(nodes)
+
+
+
+        B_inter,c_inter,det_inter,B_D_inter,B_DD_inter=self.b.change_of_coordinates(self.mesh._get_element_points(index))
+
+        varloss_total=np.float64(0.0)
+
         for element in range(self.mesh.meshed_elements[index].N):
 
-            F_element = self.F_total[element]
-            xy_quad_element = self.xy_quad_total[element]
-            J = self.J_total[element]
 
-            # print(np.sum(self.F_total))
-            # print(np.max(self.F_total))
-            # print(np.min(self.F_total))
-            # break
+            B,c,det,B_D,B_DD=self.b.change_of_coordinates(self.mesh.meshed_elements[index]._get_element_points(element))
 
-            x_quad_element = np.reshape(xy_quad_element[:, 0], (len(xy_quad_element),1))
-            y_quad_element = np.reshape(xy_quad_element[:, 1], (len(xy_quad_element),1))
+            F_element = self.F_total[index][element]
 
-            u_NN_quad_el, [d1xu_NN_quad_el, d1yu_NN_quad_el], [d2xu_NN_quad_el, d2yu_NN_quad_el] = self.eval_NN(x_quad_element, y_quad_element)
-            integrand_1 = d2xu_NN_quad_el + d2yu_NN_quad_el
+            xy_quad_element = self.xy_quad_total[index][element]
 
-            # print(np.shape(self.w_quad))
-            # print(np.shape(v_x_quad_el[1]))
-            # print(np.shape(self.w_quad*v_x_quad_el[1]*v_y_quad_el[1]*integrand_1))
+            
+            J = self.J_total[index][element]
 
 
+
+            u_NN_quad_el=self.B.interpolate(xy_quad_element,eval)
+
+            
+
+            d1xu_NN_quad_el=self.B.interpolate_dx(xy_quad_element,eval)
+            d1yu_NN_quad_el=self.B.interpolate_dy(xy_quad_element,eval)
+
+
+            grad_first=tf.concat([d1xu_NN_quad_el,d1yu_NN_quad_el],axis=1)
+
+            
+            grad_first=B_D_inter @ tf.transpose(grad_first)
+
+            d2xu_NN_quad_el=self.B.interpolate_d2x(xy_quad_element,eval)
+            d2yu_NN_quad_el=self.B.interpolate_d2y(xy_quad_element,eval)
+
+            grad_second=tf.concat([d2xu_NN_quad_el,d2yu_NN_quad_el],axis=1)
+            grad_second=B_DD_inter @ tf.transpose(grad_second)
+
+            integrand_1=tf.reduce_sum(grad_second,axis=0)
+            
+
+
+            #now you habe matrices (2,n_points)
+   
+                        
             if self.params['var_form'] == 0:
-                u_NN_el = tf.convert_to_tensor([J*tf.reduce_sum(self.w_quad*v_x[r]*integrand_1) for r in range(self.n_test)], dtype=tf.float64)
-
-            # if self.params['var_form'] == 1:
+                 
+                #u_NN_el = tf.convert_to_tensor([J*tf.reduce_sum(self.w_quad*v_x[r]*integrand_1) for r in range(self.n_test)], dtype=tf.float64)
+                 u_NN_el=tf.convert_to_tensor([J*tf.reduce_sum(self.w_quad[:,0]*self.b.Base[:,r]*integrand_1) for r in range(self.b.n)], dtype=tf.float64)
+            
+            #if self.params['var_form'] == 1:
             #     u_NN_el_1 = tf.convert_to_tensor([[jacobian/jacobian_x*tf.reduce_sum(
             #         self.w_quad[:, 0:1]*dv_x_quad_el[r]*self.w_quad[:, 1:2]*v_y_quad_el[k]*d1xu_NN_quad_el)
             #         for r in range(n_test_x)] for k in range(n_test_y)], dtype=tf.float32)
@@ -164,13 +197,13 @@ class VPINN(tf.keras.Model):
             #         for r in range(n_test_x)] for k in range(n_test_y)], dtype=tf.float32)
             #     u_NN_el = u_NN_el_1 + u_NN_el_2
 
+
             res_NN_element = tf.reshape(u_NN_el - F_element, [1, -1])
             loss_element = tf.reduce_mean(tf.square(res_NN_element))
             varloss_total = varloss_total + loss_element
 
         return varloss_total
 
-    @tf.function
     def loss_total(self):
         #consider only var  formulation 
         #loss_0 = 0
@@ -179,18 +212,17 @@ class VPINN(tf.keras.Model):
         loss=0.0
 
         for big_element in range(self.mesh.N):
-                loss+=self.loss_big_triangle(big_element)
+                loss=loss+self.loss_big_triangle(big_element)
 
         return loss
 
-    @tf.function
     def loss_gradient(self):
-        with tf.GradientTape(persistent=True) as loss_grad:
+        with tf.GradientTape() as loss_grad:
             loss = self.loss_total()
+
         gradient = loss_grad.gradient(loss, self.vars)
         return loss, gradient
 
-    @tf.function
     def gradient_descent(self):
         loss, gradient = self.loss_gradient()
         self.optimizer.apply_gradients(zip(gradient, self.vars))
@@ -205,7 +237,7 @@ class VPINN(tf.keras.Model):
 
             loss = self.gradient_descent()
 
-            if i % 100 == 0:
+            if i % 1 == 0:
                 elapsed = time.time() - start_time
                 print(f'Iteration: {i}', f'loss: {loss.numpy():0.6f}', f'time: {elapsed}')
                 history.append(loss)
@@ -214,7 +246,7 @@ class VPINN(tf.keras.Model):
         return history
 
     def get_domain_info(self):
-
+    #???????????
         a = np.array(self.params['domain'][0])
         b = np.array(self.params['domain'][1])
 
@@ -236,19 +268,21 @@ class VPINN(tf.keras.Model):
         self.y_quad = np.reshape(self.xy_quad[:,1], (len(self.xy_quad), 1))
 
 
-        self.points=np.array([self.x_quad,self.y_quad],dtype=np.float64)
+        self.points=self.xy_quad
+        
         self.w_quad = np.reshape(self.w_quad, (len(self.w_quad), 1))
 
 
     def pre_compute(self):
 
+
         self.generate_quadrature_points()
 
         self.evaluate_test_and_inter_functions()
 
-        self.F_ext_total = self.construct_RHS()
+        self.construct_RHS()
 
-    def evaluate_test_functions(self):
+    def evaluate_test_and_inter_functions(self):
         #change that by using interpolator class
         #self.v_evaluations = {}
         #self.v_evaluations["vx_quad"] = self.pb.v(self.x_quad, self.y_quad, self.n_test)
@@ -260,11 +294,12 @@ class VPINN(tf.keras.Model):
         # print(np.max(self.v_evaluations["v_x_quad"]), np.min(self.v_evaluations["v_x_quad"]), np.sum(self.v_evaluations["v_x_quad"]))
         # print(np.max(self.v_evaluations["v_y_quad"]), np.min(self.v_evaluations["v_y_quad"]), np.sum(self.v_evaluations["v_y_quad"]))
 
+
         self.b=interpolator(self.n_test,False,True,points=self.points)
 
         self.B=interpolator(self.n_inter,False,False,points=None)
 
-        self.construct_RHS()
+
 
 
     def construct_RHS(self):
@@ -281,6 +316,7 @@ class VPINN(tf.keras.Model):
         for big_element in range(self.mesh.N):
             F_element=[]
             x_element=[]
+            J_element=[]
 
             for element in range(self.mesh.meshed_elements[big_element].N):
     
@@ -288,22 +324,27 @@ class VPINN(tf.keras.Model):
                 # get quadrature points in arb. element and get jacobian
                 xy_quad_element, J = self.mesh.translate(self.xy_quad, self.mesh.meshed_elements[big_element]._get_element_points(element))
                 x_element.append(xy_quad_element)
+                J_element.append(J)
 
                 # evaluate f on arb. quad points
                 f_quad_element = self.pb.f_exact(xy_quad_element[:, 0], xy_quad_element[:, 1])
 
                 # do the integral and appnd to total list
-                F_element.append([J*np.sum(self.w_quad*self.b.Base[:,r]*f_quad_element) for r in range(self.b.n)])
+                F_element.append([J*np.sum(self.w_quad[:,0]*self.b.Base[:,r]*f_quad_element) for r in range(self.b.n)])
 
-            F_big_element=np.array(F_element,dtype=np.float64)
+            
 
-
+            F_element=np.array(F_element,dtype=np.float64)
+            print(F_element)
+            J_element=np.array(J_element,dtype=np.float64)
             xy_quad_total.append(x_element)
-            F_total.append(F_big_element)
+            J_total.append(J_element)
+            F_total.append(F_element)
+
             #xy_quad_total.append(xy_quad_element)
             #J_total.append(J)
 
-
+        self.J_total=J_total
         self.F_total = F_total
         self.xy_quad_total = np.array(xy_quad_total,dtype=np.float64)
 
